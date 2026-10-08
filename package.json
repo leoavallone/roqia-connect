@@ -2,7 +2,7 @@
   "name": "roqia-whatsapp-manager",
   "version": "1.0.0",
   "private": true,
-  "description": "Portal seguro para clientes consultarem e conectarem sessões do WPPConnect.",
+  "description": "Portal seguro para clientes consultarem e conectarem sessões do WAHA.",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

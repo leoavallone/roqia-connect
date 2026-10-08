@@ -18,16 +18,16 @@ function required(name) {
   return value;
 }
 
-function validateWppUrl(value) {
+function validateWahaUrl(value) {
   let parsed;
   try {
     parsed = new URL(value);
   } catch {
-    throw new Error('WPPCONNECT_URL deve ser uma URL HTTP ou HTTPS válida.');
+    throw new Error('WAHA_URL deve ser uma URL HTTP ou HTTPS válida.');
   }
 
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) {
-    throw new Error('WPPCONNECT_URL deve usar HTTP/HTTPS e não pode conter credenciais.');
+    throw new Error('WAHA_URL deve usar HTTP/HTTPS e não pode conter credenciais.');
   }
 
   parsed.pathname = parsed.pathname.replace(/\/+$/, '');
@@ -50,8 +50,8 @@ function loadConfig() {
     nodeEnv,
     isProduction: nodeEnv === 'production',
     port: integer('PORT', 3000, { min: 1, max: 65535 }),
-    wppconnectUrl: validateWppUrl(required('WPPCONNECT_URL')),
-    wppconnectSecretKey: required('WPPCONNECT_SECRET_KEY'),
+    wahaUrl: validateWahaUrl(required('WAHA_URL')),
+    wahaApiKey: required('WAHA_API_KEY'),
     adminSecret,
     clientsFile: path.resolve(root, process.env.CLIENTS_FILE || 'config/clients.json'),
     clientsJson: process.env.CLIENTS_JSON?.trim() || '',
@@ -59,8 +59,8 @@ function loadConfig() {
     authRateLimitWindowMs:
       integer('AUTH_RATE_LIMIT_WINDOW_MINUTES', 15, { min: 1, max: 1440 }) * 60_000,
     authRateLimitMax: integer('AUTH_RATE_LIMIT_MAX', 5, { min: 1, max: 100 }),
-    wppconnectTimeoutMs: integer('WPPCONNECT_TIMEOUT_MS', 10_000, { min: 1000, max: 60_000 }),
-    wppconnectStartTimeoutMs: integer('WPPCONNECT_START_TIMEOUT_MS', 35_000, {
+    wahaTimeoutMs: integer('WAHA_TIMEOUT_MS', 10_000, { min: 1000, max: 60_000 }),
+    wahaStartTimeoutMs: integer('WAHA_START_TIMEOUT_MS', 35_000, {
       min: 5000,
       max: 120_000,
     }),
@@ -70,4 +70,4 @@ function loadConfig() {
   });
 }
 
-module.exports = { loadConfig, validateWppUrl };
+module.exports = { loadConfig, validateWahaUrl };

@@ -17,7 +17,7 @@ function setup() {
     },
     size: 1,
   };
-  const wppService = {
+  const whatsappService = {
     health: async () => true,
     getConnectionStatus: async () => ({ state: 'disconnected' }),
     prepareQrCode: async () => ({ state: 'connecting', qrReady: true }),
@@ -31,7 +31,7 @@ function setup() {
     authRateLimitWindowMs: 60_000,
     authRateLimitMax: 5,
   };
-  return createApp({ config, clientStore, wppService });
+  return createApp({ config, clientStore, whatsappService });
 }
 
 async function listen(app) {
@@ -42,7 +42,7 @@ async function listen(app) {
   return { server, url: `http://127.0.0.1:${port}` };
 }
 
-test('health check não depende do WPPConnect', async (t) => {
+test('health check local não depende do WAHA', async (t) => {
   const { server, url } = await listen(setup());
   t.after(() => server.close());
   const response = await request(url).get('/health').expect(200);

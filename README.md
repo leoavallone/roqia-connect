@@ -1,45 +1,29 @@
 # RoqIA WhatsApp Manager
 
-Portal web leve para cada cliente consultar o estado da própria sessão do WhatsApp e, quando necessário, gerar um novo QR Code do WPPConnect Server. O navegador conversa somente com este backend; `WPPCONNECT_SECRET_KEY`, token Bearer, PIN e nome interno da sessão nunca são devolvidos pela API do portal.
+Portal web para cada cliente consultar e conectar sua própria sessão do WhatsApp no WAHA. O navegador conversa somente com este backend; a chave da API, o PIN e o nome interno da sessão não são enviados ao frontend.
 
 ## Arquitetura e segurança
 
 - Node.js + Express + EJS, HTML/CSS/JavaScript vanilla.
 - Sessão temporária em cookie `HttpOnly`, `SameSite=Lax` e `Secure` em produção.
-- PIN validado no backend; após o login, as chamadas usam apenas o cookie opaco.
-- Limite de tentativas por combinação IP/cliente.
+- PIN validado no backend e limite de tentativas por combinação IP/cliente.
 - Helmet e CSP restritiva.
-- Sessão WPPConnect sempre vem de `config/clients.json`; o usuário não pode escolhê-la.
-- URL do WPPConnect vem somente do ambiente. Não há parâmetro de URL nas rotas públicas.
-- Tokens WPPConnect ficam em cache somente na memória do backend e são renovados em caso de `401`.
-- Logs de erro são sanitizados e não incluem PIN, chave secreta, Bearer ou URL de geração do token.
-- QR em PNG é transmitido como binário, sem Base64 no frontend.
+- A sessão WAHA vem exclusivamente da configuração interna de clientes.
+- A URL e a chave do WAHA vêm somente do ambiente.
+- Logs sanitizados, sem PIN ou chave da API.
+- QR transmitido ao navegador como imagem binária.
 
-O `express-session` usa armazenamento em memória, de propósito, porque esta primeira versão não possui banco. Isso atende a uma única réplica. Para escalar horizontalmente, troque o store por Redis ou PostgreSQL e mova o repositório de clientes em `src/config/clients.js` para o banco.
-
-## Requisitos
-
-- Node.js 20 ou superior (o Docker usa Node 22 Alpine).
-- WPPConnect Server acessível pelo backend.
-- Para Docker Compose, uma rede Docker externa compartilhada com o WPPConnect.
+O `express-session` usa armazenamento em memória. Esta configuração atende uma única réplica; para escalar horizontalmente, use Redis ou PostgreSQL.
 
 ## Instalação local
+
+Requisitos: Node.js 20 ou superior e um serviço WAHA acessível pelo backend.
 
 ```bash
 npm install
 cp .env.example .env
 cp config/clients.example.json config/clients.json
-```
-
-Gere segredos sem reutilizar a `SECRET_KEY` do WPPConnect:
-
-```bash
-openssl rand -base64 48
-```
-
-Preencha `.env` e configure pelo menos um cliente. Depois:
-
-```bash
+npm run hash-pin
 npm run check
 npm test
 npm start
@@ -53,16 +37,16 @@ Abra `http://localhost:3000/conectar/cliente1`.
 |---|---:|---|
 | `PORT` | não | Porta HTTP; padrão `3000`. |
 | `NODE_ENV` | produção | Use `production` no EasyPanel. |
-| `WPPCONNECT_URL` | sim | URL exclusivamente interna, por exemplo `http://automacoes_wppconnect:21465`. |
-| `WPPCONNECT_SECRET_KEY` | sim | A mesma `SECRET_KEY` configurada no WPPConnect Server. |
-| `ADMIN_SECRET` | sim | Chave independente para assinar cookies; em produção, no mínimo 32 caracteres. |
+| `WAHA_URL` | sim | URL interna, por exemplo `http://automacoes_waha:3000`. |
+| `WAHA_API_KEY` | sim | A mesma chave configurada no serviço WAHA. |
+| `ADMIN_SECRET` | sim | Chave para assinar cookies; em produção, no mínimo 32 caracteres. |
 | `CLIENTS_FILE` | não | Padrão `config/clients.json`. |
-| `CLIENTS_JSON` | não | Alternativa ao arquivo, recomendada no EasyPanel. Recebe o objeto completo dos clientes em uma linha. |
+| `CLIENTS_JSON` | não | Alternativa ao arquivo, recomendada no EasyPanel. |
 | `SESSION_TTL_MINUTES` | não | Expiração da sessão; padrão `30`. |
 | `AUTH_RATE_LIMIT_WINDOW_MINUTES` | não | Janela do bloqueio; padrão `15`. |
 | `AUTH_RATE_LIMIT_MAX` | não | Falhas permitidas por IP/cliente; padrão `5`. |
-| `WPPCONNECT_TIMEOUT_MS` | não | Timeout das consultas; padrão `10000`. |
-| `WPPCONNECT_START_TIMEOUT_MS` | não | Timeout de inicialização; padrão `35000`. |
+| `WAHA_TIMEOUT_MS` | não | Timeout das consultas; padrão `10000`. |
+| `WAHA_START_TIMEOUT_MS` | não | Timeout de inicialização; padrão `35000`. |
 | `QR_POLL_ATTEMPTS` | não | Tentativas de localizar o QR; padrão `10`. |
 | `QR_POLL_INTERVAL_MS` | não | Intervalo entre tentativas; padrão `1500`. |
 | `QR_START_COOLDOWN_MS` | não | Protege contra reinícios repetidos; padrão `15000`. |
@@ -71,48 +55,29 @@ Nunca coloque `.env` no Git nem na imagem Docker.
 
 ## Configuração dos clientes
 
-Gere o hash do PIN:
-
-```bash
-npm run hash-pin
-```
-
-O comando solicita o PIN com a entrada oculta para que ele não apareça no histórico do shell nem na linha de comando.
-
-Copie a saída para `config/clients.json`:
+Gere o hash do PIN com `npm run hash-pin` e configure o cliente:
 
 ```json
 {
   "cliente1": {
     "name": "Cliente 1",
-    "session": "cliente1",
+    "session": "default",
     "pinHash": "scrypt$16384$8$1$..."
   }
 }
 ```
 
-O identificador e `session` aceitam apenas letras, números, `_` e `-`, com no máximo 64 caracteres. `pin` em texto puro ainda é aceito para migração, mas `pinHash` é a opção recomendada.
+O campo `session` deve ser exatamente o nome da sessão criada no WAHA. O identificador da URL e a sessão aceitam letras, números, `_` e `-`, com até 64 caracteres.
 
-Para criar outro cliente:
-
-1. Escolha um identificador de URL, como `empresa-x`.
-2. Crie no WPPConnect uma sessão interna correspondente (ela pode ter outro nome permitido).
-3. Rode `npm run hash-pin` e digite o novo PIN na entrada oculta.
-4. Adicione o objeto ao JSON.
-5. Reinicie o container do Manager.
-6. Envie ao cliente somente `https://conectar.roqia.com.br/conectar/empresa-x` e o PIN por canal separado.
-
-## Como funciona o fluxo
+## Fluxo
 
 1. O cliente abre `/conectar/:cliente` e informa o PIN.
-2. O backend valida a configuração interna e cria um cookie temporário.
-3. `GET /api/client/status` gera/recupera o token da sessão no backend, chama `check-connection-session` e usa `status-session` para diferenciar desconectado de inicializando.
-4. Ao pedir o QR, o backend verifica novamente o estado, chama `start-session` com `waitQrCode: true`, respeita cooldown e consulta o QR em intervalos controlados.
-5. `GET /api/client/qr` faz proxy do PNG. A interface consulta o estado a cada 5 segundos e remove o QR assim que a sessão fica conectada.
+2. O backend valida a configuração e cria um cookie temporário.
+3. `GET /api/client/status` consulta o estado da sessão no WAHA.
+4. Se necessário, `POST /api/client/qr/prepare` cria ou inicia a sessão e aguarda o QR.
+5. `GET /api/client/qr` faz proxy da imagem. A interface remove o QR quando a sessão fica conectada.
 
-A normalização de variações do WPPConnect está centralizada em `src/services/wppconnect.js`. Na API oficial, `check-connection-session` devolve `status` booleano; `status-session`/`start-session` devolvem estados textuais; e `qrcode-session` devolve PNG quando o QR existe ou JSON enquanto ainda não está disponível.
-
-## Endpoints do Manager
+## Endpoints
 
 | Método | Caminho | Autenticação | Finalidade |
 |---|---|---:|---|
@@ -122,58 +87,28 @@ A normalização de variações do WPPConnect está centralizada em `src/service
 | `GET` | `/api/client/status` | cookie | Estado normalizado da conexão. |
 | `POST` | `/api/client/qr/prepare` | cookie | Inicia a sessão e aguarda o QR. |
 | `GET` | `/api/client/qr` | cookie | Proxy binário da imagem do QR. |
-| `GET` | `/health` | não | Health check local, sem depender do WPPConnect. |
-| `GET` | `/health/wppconnect` | não | Testa separadamente o `/healthz` do WPPConnect. |
+| `GET` | `/health` | não | Health check local. |
+| `GET` | `/health/waha` | não | Testa a comunicação com o WAHA. |
 
-As APIs não retornam a configuração, PIN, `session`, token ou chave secreta.
+## Deploy no EasyPanel
 
-## Docker local
+1. Mantenha os serviços `waha` e `roqia-connect` no mesmo projeto.
+2. No `roqia-connect`, use o Dockerfile da raiz e porta interna `3000`.
+3. Configure `NODE_ENV=production`, `PORT=3000`, `WAHA_URL=http://automacoes_waha:3000`, `WAHA_API_KEY`, `ADMIN_SECRET` e `CLIENTS_JSON`.
+4. Em `CLIENTS_JSON`, aponte o cliente para a sessão WAHA correta, por exemplo `"session":"default"`.
+5. Mantenha `conectar.roqia.com.br` apontando para a porta interna `3000` com HTTPS.
+6. Implante e teste `/health`, `/health/waha` e `/conectar/cliente1`.
 
-Crie uma rede compartilhada se ainda não existir e conecte também o container WPPConnect a ela:
+Se `/health/waha` retornar `503`, confira a URL interna, a chave da API e se os dois serviços estão no mesmo projeto/rede do EasyPanel.
 
-```bash
-docker network create roqia-network
-docker network connect roqia-network NOME_DO_CONTAINER_WPPCONNECT
-docker compose up -d --build
-docker compose ps
-curl http://localhost:3000/health
-curl http://localhost:3000/health/wppconnect
-```
-
-O Compose monta `config/clients.json` como somente leitura. Ele não cria, altera ou desliga a Evolution API nem o WPPConnect.
-
-## Deploy exato no EasyPanel
-
-1. No mesmo projeto que já contém o WPPConnect, crie um novo serviço do tipo **App** a partir deste repositório. Não edite o serviço da Evolution API.
-2. Selecione build por **Dockerfile** na raiz e mantenha o caminho `/Dockerfile`.
-3. Em ambiente, adicione `NODE_ENV=production`, `PORT=3000`, `WPPCONNECT_URL=http://automacoes_wppconnect:21465`, `WPPCONNECT_SECRET_KEY`, `ADMIN_SECRET` e os ajustes opcionais do `.env.example`.
-4. Confirme o nome DNS interno do serviço WPPConnect no EasyPanel. Se ele não for `automacoes_wppconnect`, use o hostname interno exibido pelo painel. Não use o domínio público nessa variável.
-5. Adicione `CLIENTS_JSON` nas variáveis do EasyPanel, por exemplo `{"cliente1":{"name":"Cliente 1","session":"cliente1","pinHash":"scrypt$..."}}`. Isso evita montar arquivo ou incluir credenciais na imagem. Como alternativa, monte `config/clients.json` em `/app/config/clients.json` como somente leitura.
-6. Configure a porta interna do serviço como `3000`.
-7. Em **Domains**, adicione `conectar.roqia.com.br`, aponte para a porta `3000` e habilite HTTPS/Let's Encrypt.
-8. Faça o deploy. O health check da imagem usa `GET /health` e não depende do WhatsApp.
-9. Abra o terminal/logs do serviço e confirme `RoqIA WhatsApp Manager ouvindo em 0.0.0.0:3000` e a quantidade de clientes.
-10. Teste `https://conectar.roqia.com.br/health`, depois `/health/wppconnect` e finalmente `/conectar/cliente1`.
-
-No EasyPanel, serviços do mesmo projeto normalmente compartilham a rede interna. Se `/health/wppconnect` retornar `503`, confirme o hostname, a porta `21465`, a `SECRET_KEY` correspondente e se os dois serviços estão na mesma rede.
-
-## Testes e diagnóstico
+## Diagnóstico
 
 ```bash
 npm run check
 npm test
 curl -i http://localhost:3000/health
-curl -i http://localhost:3000/health/wppconnect
+curl -i http://localhost:3000/health/waha
 docker compose logs -f --tail=100 roqia-whatsapp-manager
 ```
 
-Os testes cobrem formatos de status, QR em PNG/JSON, token somente no backend, rejeição de sessão arbitrária, login/cookie e proteção das APIs.
-
-Erros apresentados ao cliente são genéricos. Nos logs, use os campos `operation`, `code` e `httpStatus` para diagnosticar sem expor segredos. O Manager não executa qualquer comando ou chamada para a Evolution API.
-
-## Referências do WPPConnect
-
-- [Repositório oficial e exemplos de token](https://github.com/wppconnect-team/wppconnect-server)
-- [Swagger oficial](https://wppconnect.io/swagger/wppconnect-server/)
-- [Rotas oficiais](https://github.com/wppconnect-team/wppconnect-server/blob/main/src/routes/index.ts)
-- [Implementação oficial dos estados e QR](https://github.com/wppconnect-team/wppconnect-server/blob/main/src/controller/sessionController.ts)
+Referências: [sessões WAHA](https://waha.devlike.pro/docs/how-to/sessions/), [engine NOWEB](https://waha.devlike.pro/docs/engines/noweb/).

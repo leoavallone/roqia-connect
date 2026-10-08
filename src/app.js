@@ -6,7 +6,7 @@ const { createAuthRateLimiter } = require('./middleware/rateLimit');
 const { createAuthRouter } = require('./routes/auth');
 const { createClientRouter } = require('./routes/client');
 
-function createApp({ config, clientStore, wppService }) {
+function createApp({ config, clientStore, whatsappService }) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -63,12 +63,12 @@ function createApp({ config, clientStore, wppService }) {
   });
 
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
-  app.get('/health/wppconnect', async (_req, res) => {
+  app.get('/health/waha', async (_req, res) => {
     try {
-      await wppService.health();
+      await whatsappService.health();
       return res.json({ status: 'ok' });
     } catch (error) {
-      console.error('[WPPConnect]', {
+      console.error('[WAHA]', {
         operation: 'health',
         code: error?.code || 'UNEXPECTED',
         httpStatus: error?.httpStatus,
@@ -82,7 +82,7 @@ function createApp({ config, clientStore, wppService }) {
     maxAttempts: config.authRateLimitMax,
   });
   app.use('/api/auth', createAuthRouter(rateLimiter));
-  app.use('/api/client', createClientRouter(wppService));
+  app.use('/api/client', createClientRouter(whatsappService));
 
   app.get('/', (_req, res) => res.redirect('/conectar/cliente'));
   app.get('/conectar/:clientId', (req, res) => {
