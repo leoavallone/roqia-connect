@@ -111,7 +111,9 @@
     statusPanel.className = `status-panel is-${safeState}`;
     statusText.textContent = title;
     statusDescription.textContent = description;
-    generateButton.hidden = !['disconnected', 'unknown', 'error'].includes(safeState);
+    generateButton.hidden = safeState === 'connected'
+      || safeState === 'loading'
+      || (safeState === 'connecting' && qrVisible);
     lastCheck.textContent = `Última verificação: ${new Intl.DateTimeFormat('pt-BR', {
       hour: '2-digit',
       minute: '2-digit',

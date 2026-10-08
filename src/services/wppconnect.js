@@ -297,8 +297,18 @@ class WppConnectService {
     const current = await this.getConnectionStatus(session);
     if (current.state === 'connected') return { state: 'connected', qrReady: false };
 
+    // After a WPPConnect restart, a persisted session can remain in
+    // INITIALIZING/STARTING without exposing a QR code. Check for an existing
+    // QR first, then allow start-session to recover that stalled state.
+    try {
+      const existingQr = await this.getQrCode(session);
+      if (existingQr) return { state: 'connecting', qrReady: true };
+    } catch (error) {
+      if (!['INVALID_RESPONSE', 'UPSTREAM_HTTP_ERROR'].includes(error.code)) throw error;
+    }
+
     const lastStart = this.lastStartAt.get(session) || 0;
-    if (current.state !== 'connecting' && Date.now() - lastStart >= this.startCooldownMs) {
+    if (Date.now() - lastStart >= this.startCooldownMs) {
       try {
         await this.startSession(session, webhookUrl);
       } catch (error) {

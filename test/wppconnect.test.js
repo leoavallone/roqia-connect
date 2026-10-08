@@ -67,3 +67,26 @@ test('rejeita session arbitrária antes de formar URL', async () => {
   });
   await assert.rejects(() => service.generateToken('../admin'), { code: 'INVALID_SESSION' });
 });
+
+test('reinicia sessão travada em connecting quando não existe QR', async () => {
+  const service = new WppConnectService({
+    baseUrl: 'http://wppconnect:21465',
+    secretKey: 'secret',
+    qrPollAttempts: 1,
+  });
+  let starts = 0;
+  let qrReads = 0;
+  service.getConnectionStatus = async () => ({ state: 'connecting' });
+  service.startSession = async () => {
+    starts += 1;
+    return { state: 'connecting', qrReady: false };
+  };
+  service.getQrCode = async () => {
+    qrReads += 1;
+    return qrReads === 1 ? null : { buffer: Buffer.from('qr'), contentType: 'image/png' };
+  };
+
+  const result = await service.prepareQrCode('cliente1');
+  assert.equal(starts, 1);
+  assert.deepEqual(result, { state: 'connecting', qrReady: true });
+});
