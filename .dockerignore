@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log*
+.git
+.gitignore
+.env
+config/clients.json
+test
+coverage
+.DS_Store

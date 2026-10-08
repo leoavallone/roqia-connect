@@ -1,0 +1,7 @@
+{
+  "cliente1": {
+    "name": "Cliente 1",
+    "session": "cliente1",
+    "pinHash": "COLE_AQUI_O_HASH_GERADO_POR_NPM_RUN_HASH_PIN"
+  }
+}

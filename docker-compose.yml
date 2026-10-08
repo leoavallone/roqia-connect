@@ -1,0 +1,17 @@
+services:
+  roqia-whatsapp-manager:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    env_file:
+      - .env
+    volumes:
+      - ./config/clients.json:/app/config/clients.json:ro
+    networks:
+      - roqia-network
+
+networks:
+  roqia-network:
+    external: true
+    name: ${DOCKER_NETWORK:-roqia-network}

@@ -1,0 +1,7 @@
+{
+  "cliente1": {
+    "name": "Cliente Demonstração",
+    "session": "sessao_teste",
+    "pin": "123456"
+  }
+}
